@@ -1,0 +1,552 @@
+<script type="text/javascript">
+//Initialize borrower data arrays
+var main_count = 0, borrowerArr = [], coBorrowerArr = [], errorMessage = [], requestType = [];
+borrowerArr[main_count] = ['{!R64219674.firstName}','{!R64219674.lastName}','{!R64219674.ssn}','{!R64219674.current_street}','{!R64219674.current_city}','{!R64219674.current_state}','{!R64219674.current_zip}','{!R64219674.id}'];
+coBorrowerArr[main_count] = ['{!R63369033.firstName}','{!R63369033.lastName}','{!R63369033.ssn}','{!R63369033.current_street}','{!R63369033.current_city}','{!R63369033.current_state}','{!R63369033.current_zip}','{!R63369033.id}'];
+
+function userConfirm() {
+	$('input[name="destId"]').val('51690233'); //Credit view page static ID
+	$('#rbe_loading').css('display','block');
+	loader();
+}
+
+var XMLrequest, main_count = 0;
+function loader() {	
+	if (main_count == 0) {
+		$('#theLink').hide();
+		$('#CR').show();
+		deleteBorrowerChildRecs(0, 'R62066864');
+		deleteBorrowerChildRecs(1, 'R63205841');
+	} 
+	
+	if (coBorrowerArr[main_count][0] == '') {
+		XMLrequest = indRequestXML();
+		requestType[main_count] = "individual";
+	} else {
+		XMLrequest = jointRequestXML();
+		requestType[main_count] = "joint";
+	} parseCreditData();
+}
+
+function deleteBorrowerChildRecs(gridRow, relationshipID) {
+	maxRow1 = rbf_getMaxRowIndex2(gridRow);
+	bIndex = 0;
+	while (bIndex < maxRow1) {
+		bId = rbf_getGridValue2(gridRow, relationshipID, bIndex);
+		if (bId == borrowerArr[main_count][7] || bId == coBorrowerArr[main_count][7]) {
+			$("#rbi_gridRow_"+gridRow+"_"+bIndex).find(".actionCol > a").click();
+		} bIndex++;	
+	}
+}
+
+var firstname = borrowerArr[main_count][0], lastname = borrowerArr[main_count][1], ssn = borrowerArr[main_count][2], street = borrowerArr[main_count][3], city = borrowerArr[main_count][4], state = borrowerArr[main_count][5], zip = borrowerArr[main_count][6];
+function indRequestXML() {
+	return '\
+	<REQUEST_GROUP MISMOVersionID="2.4.1.1">\
+		<RECEIVING_PARTY _Name="8888"/>\
+		<SUBMITTING_PARTY _Name="Byte">\
+			<PREFERRED_RESPONSE  Indicator_Format="TEXT" _Method="HTTPS"/>\
+		</SUBMITTING_PARTY>\
+		<REQUEST InternalAccountIdentifier="{!internal_account_identifier}" LoginAccountIdentifier="{!login_account_identifier}" LoginAccountPassword="{!login_account_password}">\
+			<REQUEST_DATA>\
+				<CREDIT_REQUEST MISMOVersionID="2.3.1" RequestingPartyRequestedByName="loanofficer" CreditReportType="Merge">\
+					<CREDIT_REQUEST_DATA BorrowerID="B1" CreditReportRequestActionType="Submit" CreditReportType="Merge" CreditRequestType="Individual">\
+						<CREDIT_REPOSITORY_INCLUDED _EquifaxIndicator="Y" _ExperianIndicator="Y" _TransUnionIndicator="Y"/>\
+					</CREDIT_REQUEST_DATA>\
+					<LOAN_APPLICATION>\
+						<BORROWER BorrowerID="B1" JointAssetBorrowerID="B1" _FirstName="'+ firstname +'" _LastName="'+ lastname +'" _PrintPositionType="Borrower" _SSN="'+ ssn +'" _UnparsedName="'+ firstname +' '+ lastname +'">\
+							<_RESIDENCE _City="'+ city +'" _PostalCode="'+ zip +'" _State="'+ state +'" _StreetAddress="'+ street +'"/>\
+						</BORROWER>\
+					</LOAN_APPLICATION>\
+				</CREDIT_REQUEST>\
+			</REQUEST_DATA>\
+		</REQUEST>\
+	</REQUEST_GROUP>';	
+}
+
+function jointRequestXML() {
+	var cfirstname = coBorrowerArr[main_count][0], clastname = coBorrowerArr[main_count][1], cssn = coBorrowerArr[main_count][2], cstreet = coBorrowerArr[main_count][3], ccity = coBorrowerArr[main_count][4], cstate = coBorrowerArr[main_count][5], czip = coBorrowerArr[main_count][6];
+	
+	return '\
+	<REQUEST_GROUP MISMOVersionID="2.3.1">\
+		<RECEIVING_PARTY _Name="8888"/>\
+		<SUBMITTING_PARTY _Name="Byte">\
+			<PREFERRED_RESPONSE _Format="TEXT" _Method="HTTPS"/>\
+		</SUBMITTING_PARTY>\
+		<REQUEST InternalAccountIdentifier="{!internal_account_identifier}" LoginAccountIdentifier="{!login_account_identifier}" LoginAccountPassword="{!login_account_password}">\
+			<REQUEST_DATA>\
+				<CREDIT_REQUEST MISMOVersionID="2.3.1" RequestingPartyRequestedByName="loanofficer">\
+					<CREDIT_REQUEST_DATA BorrowerID="B1 B2" CreditReportRequestActionType="Submit" CreditReportType="Merge" CreditRequestType="Joint">\
+						<CREDIT_REPOSITORY_INCLUDED _EquifaxIndicator="Y" _ExperianIndicator="Y" _TransUnionIndicator="Y"/>\
+					</CREDIT_REQUEST_DATA>\
+					<LOAN_APPLICATION>\
+						<BORROWER BorrowerID="B1" JointAssetBorrowerID="B1" _FirstName="'+ firstname +'" _LastName="'+ lastname +'" _PrintPositionType="Borrower" _SSN="'+ ssn +'" _UnparsedName="'+ firstname +' '+ lastname +'">\
+							<_RESIDENCE _City="'+ city +'" _PostalCode="'+ zip +'" _State="'+ state +'" _StreetAddress="'+ street +'"/>\
+						</BORROWER>\
+						<BORROWER BorrowerID="B2" JointAssetBorrowerID="B2" _FirstName="'+ cfirstname +'" _LastName="'+ clastname +'" _PrintPositionType="CoBorrower" _SSN="'+ cssn +'" _UnparsedName="'+ cfirstname +' '+ clastname +'">\
+							<_RESIDENCE _City="'+ ccity +'" _PostalCode="'+ czip +'" _State="'+ cstate +'" _StreetAddress="'+ cstreet +'"/>\
+						</BORROWER>\
+					</LOAN_APPLICATION>\
+				</CREDIT_REQUEST>\
+			</REQUEST_DATA>\
+		</REQUEST>\
+	</REQUEST_GROUP>';
+}
+
+var XMLresponse;
+function parseCreditData() { 
+	$.ajax({
+		url: 'http://beta.xpertonline.net/V4/Interface/AllWestern/AllWestern.aspx',
+		data: XMLrequest, 
+		async: false,
+		type: 'POST',
+		contentType: "text/xml",
+		dataType: "text",
+		success : function(data) { 
+			XMLresponse = data;
+			
+			if (data.indexOf('CREDIT_ERROR_MESSAGE') > 0) { //XML response has an error
+				logError();
+			} else { 
+				create_liabilities_main();
+				create_scores_main();
+				updateBorrowerScores_main();
+			} 
+			
+			$('div[name="Page Begin"]').find('input[value=" Save "]').click();
+		},
+		error : function (xhr, ajaxOptions, thrownError){  
+			//console.log(xhr.status);          
+			//console.log(thrownError);
+		} 
+	}); 
+}
+
+function create_liabilities_main() {
+	create_liabilities(borrowerArr[main_count][7], coBorrowerArr[main_count][7]);
+	
+	if (requestType[main_count] == "joint") { 
+		create_liabilities(coBorrowerArr[main_count][7], borrowerArr[main_count][7]);
+	}
+}
+
+var score_crit = ['\_ModelNameType\=\"TransUnionEmpirica\"', '\_ModelNameType\=\"EquifaxBeacon\"', '\_ModelNameType\=\"ExperianFairIsaac\"'];
+var score_type = ['FICO', 'EFX', 'XPN'];
+var borrower1 = "B1", borrower2 = "B2";
+function create_scores_main () { 
+	create_scores(borrower1, borrowerArr[main_count][7], true);
+	
+	if (requestType[main_count] == "joint") { 
+		create_scores(borrower2, borrowerArr[main_count][7], false);
+		create_scores(borrower2, coBorrowerArr[main_count][7], true);
+		create_scores(borrower1, coBorrowerArr[main_count][7], false);
+	} 
+}
+
+var minTag = ['TransUnionEmpirica_MinimumValue', 'EquifaxBeacon_MinimumValue', 'ExperianFairIsaac_MinimumValue'];
+var maxTag = ['TransUnionEmpirica_MaximumValue', 'EquifaxBeacon_MaximumValue', 'ExperianFairIsaac_MaximumValue'];
+var multipleField = ['multiple_fico_scores_', 'multiple_efx_scores_', 'multiple_xpn_scores_'];
+var borrowerScore = ['fico_score', 'efx_score', 'xpn_score'];
+var borrowerModelName = ['fico_model_name', 'efx_model_name', 'xpn_model_name']; 
+var borrowerMinValue = ['fico_minimum_value', 'efx_minimum_value', 'xpn_minimum_value'];
+var borrowerMaxValue = ['fico_maximum_value', 'efx_maximum_value', 'xpn_maximum_value'];
+
+var cb_multipleField = ['cb_multiple_fico_scores_', 'cb_multiple_efx_scores_', 'cb_multiple_xpn_scores_'];
+var cb_borrowerScore = ['cb_fico_score', 'cb_efx_score', 'cb_xpn_score'];
+var cb_borrowerModelName = ['cb_fico_model_name', 'cb_efx_model_name', 'cb_xpn_model_name']; 
+function updateBorrowerScores_main() {
+	updateBorrowerScores(borrower1, borrowerArr[main_count][7], true); 
+	
+	if (requestType[main_count] == "joint") { 
+		updateBorrowerScores(borrower2, coBorrowerArr[main_count][7], false);
+	} 
+}
+
+function logError() { 
+	rowIndex = 2;
+	maxRow1 = rbf_getMaxRowIndex2(rowIndex);
+	bIndex = 0;
+	while (bIndex < maxRow1) {
+		bId = rbf_getGridValue2(rowIndex, 'id', bIndex);
+		if (bId == borrowerArr[main_count][7] || bId == coBorrowerArr[main_count][7]) {
+			error_message = getElementByTagName("_Text");
+			rbf_setGridValue2(rowIndex, 'error_message', bIndex, error_message); 
+			rbf_setGridValue2(rowIndex, 'credit_reference_number', bIndex, "");
+			rbf_setGridValue2(rowIndex, 'Pborrower3', bIndex, "");
+			count = 0;
+			while (count < 3) {
+				rbf_setGridValue2(rowIndex, borrowerScore[count], bIndex, ""); 
+				rbf_setGridValue2(rowIndex, borrowerModelName[count], bIndex, ""); 
+				rbf_setGridPicklistCode(rowIndex, multipleField[count], bIndex, "n");
+				rbf_setGridValue2(rowIndex, borrowerMinValue[count], bIndex, ""); 
+				rbf_setGridValue2(rowIndex, borrowerMaxValue[count], bIndex, ""); 
+				
+				if (requestType[main_count] == "joint") {
+					rbf_setGridValue2(rowIndex, cb_borrowerScore[count], bIndex, ""); 
+					rbf_setGridValue2(rowIndex, cb_borrowerModelName[count], bIndex, ""); 
+					rbf_setGridPicklistCode(rowIndex, cb_multipleField[count], bIndex, "n");
+				}
+				
+				count++;
+			}
+		}
+		bIndex++;
+	}	
+}
+
+var liabilityNode, creditLoanType, derog_indicator, name, namef, account_identifier, account_reportedDate, last_activityDate, sourceType, account_ownershiptype, account_statusType, account_statusDate, credit_limitAmount, monthsReviewedCount, highCreditAmount, d30, accountType, credit_comment, d60, d90, pastDueAmount, type, termsMonths_count, monthlyPayment_amount, unpaidBalance_amount;
+var a1, b1, b2, b3, c1a, c1b, c2, d1, d2x, e1, e2, e3, f1, g1, h1, i1a, i1b, i1c, j1;
+function create_liabilities(mainBorrower, coBorrower) {
+	liabilityNode = "CREDIT_LIABILITY";
+	creditLoanType = getElementsByName(liabilityNode, "CreditLoanType");
+	derog_indicator = getElementsByName(liabilityNode, "_DerogatoryDataIndicator");
+	name = getElementsByName2(liabilityNode, "_Name"); namef = name.split('|');//A1a
+	account_identifier = getElementsByName(liabilityNode, "_AccountIdentifier");//A1b
+	account_reportedDate = getElementsByName(liabilityNode, "_AccountReportedDate");//B1
+	last_activityDate = getElementsByName(liabilityNode, "_LastActivityDate");//B2
+	sourceType = getElementsByName(liabilityNode, "_SourceType");//B3a
+	account_ownershiptype = getElementsByName(liabilityNode, "_AccountOwnershipType");//B3b
+	account_statusType = getElementsByName(liabilityNode, "_AccountStatusType");//c1a
+	account_statusDate = getElementsByName(liabilityNode, "_AccountStatusDate");//c1b
+	credit_limitAmount = getElementsByName(liabilityNode, "_CreditLimitAmount");//C2
+	monthsReviewedCount = getElementsByName(liabilityNode, "_MonthsReviewedCount");//D1
+	highCreditAmount = getElementsByName(liabilityNode, "_HighCreditAmount");//D2
+	d30 = getElementsByName(liabilityNode, "_30Days");//E1
+	accountType = getElementsByName(liabilityNode, "_AccountType");//E2
+	credit_comment = getElementsByTagName(liabilityNode, "CREDIT_COMMENT");//E3
+	d60 = getElementsByName(liabilityNode, "_60Days");//F1
+	d90 = getElementsByName(liabilityNode, "_90Days");//G1
+	pastDueAmount = getElementsByName(liabilityNode, "_PastDueAmount");//H1
+	type = getElementsByName(liabilityNode, "_Type");//I1
+	termsMonths_count = getElementsByName(liabilityNode, "_TermsMonthsCount");//I1
+	monthlyPayment_amount = getElementsByName(liabilityNode, "_MonthlyPaymentAmount");//I1
+	unpaidBalance_amount = getElementsByName(liabilityNode, "_UnpaidBalanceAmount");//J1
+	
+	count = 0; rowIndex = 1; 
+	while (count < creditLoanType.length) {
+		rbf_addGridRow(rowIndex);
+		maxRow0 = rbf_getMaxRowIndex2(rowIndex) - 1;
+		
+		if (creditLoanType[count] == "Collection") {
+			type = "ci";
+		} else if (derog_indicator[count] == "Y") {
+			type = "dt";
+		} else {
+			type = "tr";
+		} rbf_setGridPicklistCode(rowIndex, 'liability_type', maxRow0, type);
+		
+		rbf_setGridValue2(rowIndex, 'R63205841', maxRow0, mainBorrower); 
+		rbf_setGridValue2(rowIndex, 'R62923971', maxRow0, coBorrower);
+		
+		namex = (namef[count] == ',' || namef[count] == undefined) ? "" : namef[count]; 
+		a1 =  namex +" "+ account_identifier[count];
+		rbf_setGridValue2(rowIndex, 'a1', maxRow0, a1);
+		
+		b1 = getDateFormat(account_reportedDate[count]);
+		rbf_setGridValue2(rowIndex, 'b1', maxRow0, b1);
+	
+		b2 = getDateFormat(last_activityDate[count]);
+		rbf_setGridValue2(rowIndex, 'b2', maxRow0, b2);
+		
+		b3 = sourceType[count]  +" "+ account_ownershiptype[count];
+		rbf_setGridValue2(rowIndex, 'b3', maxRow0, b3);
+		
+		c1a = account_statusType[count];
+		rbf_setGridValue2(rowIndex, 'c1a', maxRow0, c1a);
+		
+		c1b = getDateFormat(account_statusDate[count]);
+		rbf_setGridValue2(rowIndex, 'c1b', maxRow0, c1b);
+		
+		c2 = getDecFormat(credit_limitAmount[count]);
+		rbf_setGridValue2(rowIndex, 'c2', maxRow0, c2);
+		
+		d1 = (isNaN(parseInt(monthsReviewedCount[count]))) ? null : parseInt(monthsReviewedCount[count]);
+		rbf_setGridValue2(rowIndex, 'd1', maxRow0, d1);
+		
+		d2x = getDecFormat(highCreditAmount[count]);
+		rbf_setGridValue2(rowIndex, 'd2x', maxRow0, d2x);
+		
+		e1 = d30[count];
+		rbf_setGridValue2(rowIndex, 'e1', maxRow0, e1);
+		
+		e2 = accountType[count];
+		rbf_setGridValue2(rowIndex, 'e2', maxRow0, e2);
+		
+		e3 = credit_comment[count].replace(/[\n\r]/g, '<br>');
+		rbf_setGridValue2(rowIndex, 'e3', maxRow0, e3);
+		
+		f1 = d60[count];
+		rbf_setGridValue2(rowIndex, 'f1', maxRow0, f1);
+		
+		g1 = d90[count];
+		rbf_setGridValue2(rowIndex, 'g1', maxRow0, g1);
+		
+		h1 = getDecFormat(pastDueAmount[count]);
+		rbf_setGridValue2(rowIndex, 'h1', maxRow0, h1);
+		
+		i1a = type[count];
+		i1b = getDecFormat(monthlyPayment_amount[count]);
+		i1c = termsMonths_count[count];
+		rbf_setGridValue2(rowIndex, 'i1a', maxRow0, i1a);
+		rbf_setGridValue2(rowIndex, 'i1b', maxRow0, i1b);
+		rbf_setGridValue2(rowIndex, 'i1c', maxRow0, i1c);
+		
+		j1 = getDecFormat(unpaidBalance_amount[count]);
+		rbf_setGridValue2(rowIndex, 'j1', maxRow0, j1);
+	
+		count++;
+	}
+}	
+
+function create_scores(borrowerRef, borrowerId, isMain) {
+	count = 0; rowIndex = 0;
+	while (count < 3) {
+		if (isMain) {
+			borrowerMain = "y";
+		} else {
+			borrowerMain = "n";
+		}
+		score_detail = getElementsById2("CREDIT_SCORE", borrowerRef, score_crit[count], "_Text"); 
+		score_code = getElementsById2("CREDIT_SCORE", borrowerRef, score_crit[count], "_Code"); 
+		
+		subCount = 0;
+		while (subCount < score_code.length) {
+			rbf_addGridRow(rowIndex);
+			maxRow2 = rbf_getMaxRowIndex2(rowIndex) - 1;
+			
+			rbf_setGridPicklistCode(rowIndex, "main_borrower", maxRow2, borrowerMain);
+			
+			rbf_setGridValue2(rowIndex, 'R62066864', maxRow2, borrowerId);
+			rbf_setGridValue2(rowIndex, 'fico_code', maxRow2, parseInt(score_code[subCount], 10));
+			rbf_setGridValue2(rowIndex, 'description', maxRow2, score_detail[subCount]);
+			rbf_setGridPicklistCode(rowIndex, 'score_type', maxRow2, score_type[count]);
+			subCount++;
+		} 
+		count++;
+	}
+}
+var creditReference, score, model, min, max;
+var inverseBRef, cb_score, cb_model;
+function updateBorrowerScores(borrowerRef, borrowerId, isMain) {
+	rowIndex = 2;
+	maxRow1 = rbf_getMaxRowIndex2(rowIndex);
+	bIndex = 0;
+	while (bIndex < maxRow1) {
+		bId = rbf_getGridValue2(rowIndex, 'id', bIndex); 
+		if (bId == borrowerId) {
+			count = 0; 
+			if (requestType[main_count] == "individual") {
+				rbf_setGridPicklistCode(rowIndex, "request_type", bIndex, "ind");
+				rbf_setGridValue2(2, 'Pborrower3', bIndex, '');
+			}  else {	
+				rbf_setGridPicklistCode(rowIndex, "request_type", bIndex, "joi");
+				if (isMain) { 
+					rbf_setGridValue2(rowIndex, 'Pborrower3', bIndex, coBorrowerArr[main_count][7]);
+				} else { 
+					rbf_setGridValue2(rowIndex, 'Pborrower3', bIndex, borrowerArr[main_count][7]);
+				}
+			} 
+			creditReference = getElement("CreditResponseID", "CreditReportIdentifier", 1);
+			rand = getRandom(2, 10000);
+			rbf_setGridValue2(rowIndex, 'random', bIndex, rand);
+			rbf_setGridValue2(rowIndex, 'error_message', bIndex, ''); 
+			rbf_setGridValue2(rowIndex, "credit_reference_number", bIndex, creditReference);
+			while (count < 3) {	
+				score = getElement2("CREDIT_SCORE", borrowerRef, score_crit[count], "_Value"); 
+				model = getElement2("CREDIT_SCORE", borrowerRef, score_crit[count], "_ModelNameTypeOtherDescription"); 
+				min = getElement(minTag[count], "_Value", 1); 
+				max = getElement(maxTag[count], "_Value", 1);
+				
+				if (getValueCount2(borrowerRef, score_crit[count], '\<\/CREDIT_SCORE\>') > 1) {
+					rbf_setGridPicklistCode(rowIndex, multipleField[count], bIndex, "y");
+				} else {
+					rbf_setGridPicklistCode(rowIndex, multipleField[count], bIndex, "n");
+				}
+				rbf_setGridValue2(rowIndex, borrowerScore[count], bIndex, parseInt(score, 10)); 
+				rbf_setGridValue2(rowIndex, borrowerModelName[count], bIndex, model); 
+				rbf_setGridValue2(rowIndex, borrowerMinValue[count], bIndex, parseInt(min, 10)); 
+				rbf_setGridValue2(rowIndex, borrowerMaxValue[count], bIndex, parseInt(max, 10)); 
+				
+				/*==============================
+				Code below to be optimized later
+				==============================*/
+				if (requestType[main_count] == "joint") {
+					inverseBRef = (borrowerRef == borrower1) ? borrower2 : borrower1;
+					cb_score = getElement2("CREDIT_SCORE", inverseBRef, score_crit[count], "_Value"); 
+					cb_model = getElement2("CREDIT_SCORE", inverseBRef, score_crit[count], "_ModelNameTypeOtherDescription"); 
+					
+					if (getValueCount2(inverseBRef, score_crit[count], '\<\/CREDIT_SCORE\>') > 1) {
+						rbf_setGridPicklistCode(rowIndex, cb_multipleField[count], bIndex, "y");
+					} else {
+						rbf_setGridPicklistCode(rowIndex, cb_multipleField[count], bIndex, "n");
+					}
+					rbf_setGridValue2(rowIndex, cb_borrowerScore[count], bIndex, parseInt(cb_score, 10)); 
+					rbf_setGridValue2(rowIndex, cb_borrowerModelName[count], bIndex, cb_model);  
+				}
+				count++;
+			}			
+		}
+		bIndex++;
+	}	
+}
+
+function getElement(main, sub, index) { 
+	xmlArr = XMLresponse.split(main);
+	str1 = xmlArr[index].split(sub+'\=\"');
+	str2 = str1[1].split('\"');
+	return str2[0];
+}
+
+function getElement2(main, borrowerId, criteria, sub) { 
+	var xmlArr = XMLresponse.split('\<'+main);
+	counter = 1;
+	while (counter < xmlArr.length) {
+		filter1 = 'BorrowerID=\"'+  borrowerId +'\" CreditFileID'; 
+		cond1 = (xmlArr[counter].indexOf(filter1) > 0) ? true : false; 
+		filter2 = criteria;
+		cond2 = (xmlArr[counter].indexOf(filter2) > 0) ? true : false;
+		if (cond1 && cond2) {
+			str1 = xmlArr[counter].split(sub+'\=\"');
+			str2 = str1[1].split('\"');
+			return str2[0];
+		}
+		counter++;
+	}
+}
+
+function getElementByTagName(tag) {
+	var xmlArr = XMLresponse.split("\<"+tag+"\>");
+	var xmlArr2 = xmlArr[1].split("\<\/"+tag+"\>");
+	return xmlArr2[0];
+}
+
+function getElementsById(tag, criteria, sub) {
+	var xmlArr = XMLresponse.split(criteria);
+	var xmlArr2 = xmlArr[1].split("\/"+tag);
+	var str1 = xmlArr2[0].split(sub+'\=\"');
+	var arrElement = new Array(), count = 1;
+	
+	while (count < str1.length) {
+		str2 = str1[count].split('\"');
+		arrElement.push(str2[0]);
+		count++;
+	}
+	return arrElement;
+}
+
+function getElementsById2(main, borrowerId, criteria, sub) { 
+	var xmlArr = XMLresponse.split('\<'+main);
+	counter = 1;
+	while (counter < xmlArr.length) {
+		filter1 = 'BorrowerID=\"'+  borrowerId +'\" CreditFileID';
+		cond1 = (xmlArr[counter].indexOf(filter1) > 0) ? true : false;
+		filter2 = criteria;
+		cond2 = (xmlArr[counter].indexOf(filter2) > 0) ? true : false;
+		if (cond1 && cond2) {
+			var str1 = xmlArr[counter].split(sub+'\=\"'); 
+			var arrElement = [], subcount = 1;
+			while (subcount < str1.length) {
+				str2 = str1[subcount].split('\"');
+				arrElement.push(str2[0]);
+				subcount++;
+			}
+			return arrElement;
+		}
+		counter++;
+	}
+}
+
+function getElementsByName(tag, criteria) {
+	var xmlArr = XMLresponse.split("\<"+tag); 
+	var arrElement = new Array(), count = 1;
+	while (count < xmlArr.length) {
+		str1 = xmlArr[count].split(criteria+'\=\"');
+		if (str1[1] == undefined) {
+			arrElement.push("X");
+		} else {
+			str2 = str1[1].split('\"');
+			arrElement.push(str2[0]);
+		}
+		count++;
+	} 
+	return arrElement;
+}
+
+function getElementsByName2(tag, criteria) {
+	var xmlArr = XMLresponse.split("\<"+tag); 
+	var strElement = "", count = 1;
+	while (count < xmlArr.length) {
+		str1 = xmlArr[count].split(criteria+'\=\"');
+		if (str1[1] == undefined) {
+			strElement += "|" ;
+		} else {
+			str2 = str1[1].split('\"');
+			strElement += str2[0] + "|";
+		}
+		count++;
+	} 
+	strElement.replace(/,/g , " ");
+	return strElement;
+}
+
+function getElementsByTagName(tag, subtag) {
+	var xmlArr = XMLresponse.split("\<"+tag);
+	var arrElement = new Array(), count = 1;
+	while (count < xmlArr.length) {
+		str1 = xmlArr[count].split('\<'+subtag+'\>\<\_Text\>');
+		if (str1[1] == undefined) {
+			arrElement.push("X");
+		} else {
+			str2 = str1[1].split('\<\/\_Text\>\<\/'+subtag);
+			arrElement.push(str2[0]);
+		}
+		count++;
+	}
+	return arrElement;
+}
+
+function getValueCount(main) { 
+	xmlArr = XMLresponse.split(main);
+	return xmlArr.length - 1;
+}
+
+function getValueCount2(borrowerId, main, closingTag) {
+	filter = 'BorrowerID=\"'+  borrowerId +'\" CreditFileID'; 
+	var xmlArr = XMLresponse.split(filter); 
+	counter = 1; valueCount = 0;
+	while (counter < xmlArr.length) {
+		if (xmlArr[counter].indexOf(closingTag) > 0) {
+			var xmlArr2 = xmlArr[counter].split(closingTag);
+			if (xmlArr2[0].indexOf(main) > 0) {
+				valueCount++;
+			}
+		}
+		counter++;
+	} 
+	return valueCount;
+}
+
+function getDateFormat(dateString) {
+	if (dateString == "" || dateString == "X" || dateString == undefined) {
+		return null;
+	} else {
+		arrDate = dateString.split("-");		
+		try {
+			returndate = new Date(arrDate[0],arrDate[1],arrDate[2]);
+			returndate.setMonth(returndate.getMonth() - 1);
+		} catch (err) {
+			returndate = null;
+		}
+		return returndate.format("mm/dd/yyyy");
+	}
+}
+
+function getDecFormat(value) {
+	var decFormat = (value == "X" || value == "") ? null : parseFloat(value);
+	return decFormat;
+}
+
+function getRandom(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+</script>
